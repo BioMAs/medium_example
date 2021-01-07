@@ -1,0 +1,80 @@
+################################
+##### BWA mapping example ######
+################################
+
+# Expected output files
+rule target:
+    input:
+        "hg38.fa.bwt",
+        "mapping/hg38/ERR2281864.sort.bam.bai"
+
+# Reference genome index for bwa alignment
+rule bwa_index:
+    input:
+        "{genome}.fa" #Get genome fasta file through the {wildcards.genome}.fa"
+    output:
+        "{genome}.fa.bwt" #Create wildcards.genome. variable
+    message:
+        "Indexing reference genome :{wildcards.genome}"
+    shell:
+        "bwa index {input}" #Run bwa index command. Here "{input}" = "{wildcards.genome}.fa"
+
+# Reads alignment
+rule bwa_aln:
+    input:
+        bwt = "{genome}.fa.bwt",
+        fasta = "{genome}.fa",
+        fq = "raw_data/{samples}.fastq.gz"
+    output:
+        temp("mapping/{genome}/{samples}.sai") #fichier temporaire
+    log:
+        "mapping/{genome}/{samples}.bwa_aln.log"
+    message:
+        "Alignment of {wildcards.samples} sur {wildcards.genome} "
+    shell:
+        "bwa aln -t {threads} {input.fasta} {input.fq} >{output} 2>{log}"
+
+
+# Create bam file for Paired end files
+rule bwa_sampe_to_bam:
+    input:
+        fasta = "{genome}.fa",
+        sai1 = "mapping/{genome}/{samples}_1.sai",
+        fq1 = "raw_data/{samples}_1.fastq.gz",
+        sai2 = "mapping/{genome}/{samples}_2.sai",
+        fq2 = "raw_data/{samples}_2.fastq.gz"
+    output:
+        #temp file
+        temp("mapping/{genome}/{samples}.bam")
+    log:
+        "mapping/{genome}/{samples}.samse.log"
+    message:
+        "PE : sai --> bam ({wildcards.genome}/{wildcards.samples})"
+    shell:
+        "bwa sampe {input.fasta} {input.sai1} {input.sai2} {input.fq1} {input.fq2} 2>{log} | samtools view -Sbh - > {output}"
+
+#Sort Bam fil
+rule sort_bam:
+    input:
+        "{base}.bam"
+    output:
+        # Protected file
+        protected("{base}.sort.bam")
+    log:
+        "{base}.sort.log"
+    message:
+        "Sort {wildcards.base}.bam"
+    params:
+        compression = "9",
+        max_mem = "1G"
+    shell:
+        "samtools sort -l {params.compression} -m {params.max_mem} -f {input} {output} 2>{log}"
+
+# Index bam file
+rule index_bam:
+    input:
+        "{base}.sort.bam"
+    output:
+        "{base}.sort.bam.bai"
+    shell:
+        "samtools index {input}"
