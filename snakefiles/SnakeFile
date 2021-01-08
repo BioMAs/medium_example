@@ -68,7 +68,7 @@ rule sort_bam:
         compression = "9",
         max_mem = "1G"
     shell:
-        "samtools sort -l {params.compression} -m {params.max_mem} -f {input} {output} 2>{log}"
+        "samtools sort -l {params.compression} -m {params.max_mem} {input} -o {output} 2>{log}"
 
 # Index bam file
 rule index_bam:
